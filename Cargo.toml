@@ -1,0 +1,6 @@
+[package]
+name = "p2pchat"
+version = "0.1.0"
+authors = ["Lucas Arnström <lucas@arnstrom.se>"]
+
+[dependencies]

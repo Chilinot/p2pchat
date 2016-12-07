@@ -1,5 +1,5 @@
 use client::Client;
-use Message;
+use data::*;
 
 pub struct ActorManager {
     client_list: Vec<Client>

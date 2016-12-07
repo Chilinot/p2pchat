@@ -1,7 +1,5 @@
 use std::sync::mpsc::Sender;
-
-use Message;
-use Data;
+use data::*;
 
 pub struct Client {
     //TODO: Chat history?

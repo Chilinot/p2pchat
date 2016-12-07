@@ -16,6 +16,7 @@ use std::str::FromStr;
 use std::net::{SocketAddr, TcpStream};
 use std::sync::mpsc::Sender;
 use std::thread;
+use std::process;
 
 fn main() {
     let mut verbose = false;
@@ -40,14 +41,14 @@ fn main() {
     }
 
     // Start listening for connections.
-    let mut acm_channel = server::bootup();
+    let mut acm_channel = server::bootup(verbose);
 
     let this_addr = SocketAddr::from_str("127.0.0.1:8888");
 
     if client {
         println!("Running in client mode.");
         for mut rhost in rhosts.iter() {
-            connect(rhost, acm_channel.clone());
+            connect(verbose, rhost, acm_channel.clone());
         }
 
         let stdin = io::stdin();
@@ -57,12 +58,18 @@ fn main() {
             if line.starts_with("connect") {
                 let split: Vec<&str> = line.split(" ").collect();
                 let rhost = split[1].to_string();
-                connect(&rhost, acm_channel.clone());
-            } else {
+                connect(verbose, &rhost, acm_channel.clone());
+            }
+            else if line.starts_with("say") {
+                let line = line.trim_left_matches("say").to_string();
                 let msg = Data::Msg {
-                    msg: Message::new(this_addr.clone().unwrap(), line)
+                    msg: Message::new(this_addr.clone().unwrap(), (line + "\n"))
                 };
                 acm_channel.send(msg).unwrap();
+            } else if line.starts_with("quit") {
+                process::exit(0);
+            } else {
+                println!("Error: unknown command!");
             }
 
         }
@@ -71,8 +78,8 @@ fn main() {
         let stdin = io::stdin();
         for line in stdin.lock().lines() {
             let line = line.unwrap();
-            if line == "terminate" {
-                return;
+            if line.starts_with("quit") {
+                process::exit(0);
             } else {
                 println!("Unknown server command!");
             }
@@ -80,7 +87,7 @@ fn main() {
     }
 }
 
-fn connect(mut rhost: &String, mut acm: Sender<Data>) {
+fn connect(verbose: bool, mut rhost: &String, mut acm: Sender<Data>) {
     let addr = match SocketAddr::from_str(&mut rhost) {
         Ok(x) => x,
         Err(e) => {
@@ -99,6 +106,6 @@ fn connect(mut rhost: &String, mut acm: Sender<Data>) {
 
     let acm = acm.clone();
     thread::spawn(move || {
-        server::handle_client(socket, acm, false);
+        server::handle_client(verbose, socket, acm, false);
     });
 }

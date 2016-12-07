@@ -7,8 +7,10 @@ use std::net::{TcpStream, TcpListener};
 use std::sync::mpsc::{channel, Sender, Receiver};
 use std::thread;
 
-pub fn bootup() -> Sender<Data> {
-    println!("Setting up actor manager...");
+pub fn bootup(verbose: bool) -> Sender<Data> {
+    if verbose {
+        println!("Setting up actor manager...");
+    }
     let (ac_sender, ac_receiver) = channel::<Data>();
     thread::spawn(move || {
         let mut actor_manager = ActorManager::new();
@@ -35,21 +37,30 @@ pub fn bootup() -> Sender<Data> {
         }
     });
 
-    println!("Setting up listener actor...");
+    if verbose {
+        println!("Setting up listener actor...");
+    }
     let acs = ac_sender.clone();
     thread::spawn(move || {
         //TODO: TcpListener
         let listener = TcpListener::bind("0.0.0.0:8888").unwrap();
-        println!("Listening for connections.");
+        if verbose {
+            println!("Listening for connections.");
+        }
         for inc_stream in listener.incoming() {
             match inc_stream {
-                Ok(stream) => {
+                Ok(mut stream) => {
                     // Successfull new connection.
                     // Spawn new thread and pass it a channel to the actor manager.
-                    println!("New connection!");
+                    if verbose {
+                        println!("New connection!");
+                        println!("Asking connection for username...");
+                    }
+                    stream.write_all("Please send username.\n".as_bytes());
+                    stream.flush();
                     let acs_clone = acs.clone();
                     thread::spawn(move || {
-                        handle_client(stream, acs_clone, true);
+                        handle_client(verbose, stream, acs_clone, true);
                     });
                 }
                 Err(e) => {
@@ -62,16 +73,18 @@ pub fn bootup() -> Sender<Data> {
     return ac_sender.clone();
 }
 
-pub fn handle_client(stream: TcpStream, acm: Sender<Data>, wait_for_name: bool) {
+pub fn handle_client(verbose: bool, mut stream: TcpStream, acm: Sender<Data>, wait_for_name: bool) {
     // Create two buffered wrappers around the stream, one for the reader thread
     // and one for the writer thread.
     let mut buf_stream = BufReader::new(stream.try_clone().unwrap());
 
-    let mut username = "Unknown".to_string();
+    let mut username = stream.peer_addr().unwrap().to_string();
     if wait_for_name {
         username.clear();
         match buf_stream.read_line(&mut username) {
-            Ok(_) => println!("New client connected with username: {}", &username),
+            Ok(_) => {
+                println!("New client connected with username: {}", &username);
+            },
             Err(e) => {
                 println!("Could not read username from socket! {:?}", e);
                 return;
@@ -109,7 +122,7 @@ fn stream_reader(acm: Sender<Data>, mut stream: TcpStream) {
         message.clear();
         match buf_stream.read_line(&mut message) {
             Ok(_) => {
-                println!("Received message: {}", &message);
+                println!("Remote says: {}", &message);
                 // Send incoming message to actor manager
                 let msg = Data::Msg { msg: Message::new(peer_addr.clone(), message.clone()) };
                 acm.send(msg);
@@ -130,7 +143,7 @@ fn stream_writer(receiver: Receiver<Data>, mut stream: TcpStream) {
                 match data {
                     Data::Msg{msg} => {
                         // Send message to client on other side of socket
-                        stream.write_all((msg.to_string() + "\n").as_bytes());
+                        stream.write_all(msg.as_bytes());
                         stream.flush();
                     },
                     Data::Cmd{cmd} => {

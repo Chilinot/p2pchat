@@ -1,6 +1,9 @@
 extern crate argparse;
 use argparse::*;
 
+#[macro_use]
+extern crate json;
+
 mod actor_manager;
 mod server;
 
@@ -13,12 +16,13 @@ use data::{Message, Data};
 use std::io;
 use std::io::prelude::*;
 use std::str::FromStr;
-use std::net::{SocketAddr, TcpStream};
+use std::net::{IpAddr, SocketAddr, TcpStream};
 use std::sync::mpsc::Sender;
 use std::thread;
 use std::process;
 
 fn main() {
+    let mut username = String::new();
     let mut verbose = false;
     let mut server = true;
     let mut client = true;
@@ -26,6 +30,10 @@ fn main() {
     { // New scope for argument parser makes it simpler to reason about lifetimes.
         let mut parser = ArgumentParser::new();
         parser.set_description("P2P Chat system built in Rust as the final project for the LACPP-course.");
+
+        parser.refer(&mut username)
+            .add_argument("username", Store, "Username to use for the chat.")
+            .required();
 
         parser.refer(&mut verbose)
             .add_option(&["-v", "--verbose"], StoreTrue, "Output lots of info.");
@@ -43,37 +51,58 @@ fn main() {
     // Start listening for connections.
     let mut acm_channel = server::bootup(verbose);
 
-    let this_addr = SocketAddr::from_str("127.0.0.1:8888");
+    let this_addr = SocketAddr::from_str("127.0.0.1:8888").unwrap();
 
     if client {
-        println!("Running in client mode.");
+        println!("Client mode enabled.");
+
+        if verbose {
+            println!("Attempting to connect to supplied hosts...");
+        }
         for mut rhost in rhosts.iter() {
-            connect(verbose, rhost, acm_channel.clone());
+            if verbose {
+                println!("\tAttempting to connect to {}", &rhost);
+            }
+            connect(&username, verbose, rhost, acm_channel.clone());
         }
 
         let stdin = io::stdin();
         for line in stdin.lock().lines() {
-            let line = line.unwrap();
+            let line = match line {
+                Ok(l) => l,
+                Err(e) => {
+                    println!("Could not read line from stdin! Error: {:?}", e);
+                    process::exit(1);
+                }
+            };
 
             if line.starts_with("connect") {
-                let split: Vec<&str> = line.split(" ").collect();
-                let rhost = split[1].to_string();
-                connect(verbose, &rhost, acm_channel.clone());
+                let line = line.trim_left_matches("connect ").to_string();
+                connect(&username, verbose, &line, acm_channel.clone());
             }
             else if line.starts_with("say") {
                 let line = line.trim_left_matches("say").to_string();
+
                 let msg = Data::Msg {
-                    msg: Message::new(this_addr.clone().unwrap(), (line + "\n"))
+                    msg: Message::new(username.clone(), this_addr.ip(), (line + "\n"))
                 };
-                acm_channel.send(msg).unwrap();
-            } else if line.starts_with("quit") {
+
+                match acm_channel.send(msg) {
+                    Ok(_) => (),
+                    Err(e) => {
+                        println!("Could not pass message to acm_channel! Error: {:?}", e);
+                    }
+                }
+            }
+            else if line.starts_with("quit") {
                 process::exit(0);
-            } else {
+            }
+            else {
                 println!("Error: unknown command!");
             }
-
         }
-    } else {
+    }
+    else {
         println!("Server mode enabled.");
         let stdin = io::stdin();
         for line in stdin.lock().lines() {
@@ -87,7 +116,7 @@ fn main() {
     }
 }
 
-fn connect(verbose: bool, mut rhost: &String, mut acm: Sender<Data>) {
+fn connect(username: &String, verbose: bool, mut rhost: &String, mut acm: Sender<Data>) {
     let addr = match SocketAddr::from_str(&mut rhost) {
         Ok(x) => x,
         Err(e) => {
@@ -103,6 +132,22 @@ fn connect(verbose: bool, mut rhost: &String, mut acm: Sender<Data>) {
             return;
         }
     };
+
+    match socket.write_all(username.as_bytes()) {
+        Ok(_) => {
+            match socket.flush() {
+                Ok(_) => (),
+                Err(e) => {
+                    println!("Could not flush socket after sending username! Error: {:?}", e);
+                    return;
+                }
+            }
+        },
+        Err(e) => {
+            println!("Could not send username over socket! Error: {:?}", e);
+            return;
+        }
+    }
 
     let acm = acm.clone();
     thread::spawn(move || {

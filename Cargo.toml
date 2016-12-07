@@ -5,3 +5,4 @@ authors = ["Lucas Arnström <lucas@arnstrom.se>"]
 
 [dependencies]
 argparse = "*"
+json = "*"

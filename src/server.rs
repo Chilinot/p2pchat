@@ -6,6 +6,7 @@ use std::io::BufReader;
 use std::net::{TcpStream, TcpListener};
 use std::sync::mpsc::{channel, Sender, Receiver};
 use std::thread;
+use std::process;
 
 pub fn bootup(verbose: bool) -> Sender<Data> {
     if verbose {
@@ -42,8 +43,14 @@ pub fn bootup(verbose: bool) -> Sender<Data> {
     }
     let acs = ac_sender.clone();
     thread::spawn(move || {
-        //TODO: TcpListener
-        let listener = TcpListener::bind("0.0.0.0:8888").unwrap();
+        let listener = match TcpListener::bind("0.0.0.0:8888") {
+            Ok(l) => l,
+            Err(e) => {
+                println!("Could not bind serverport 8888! Error: {:?}", e);
+                process::exit(1);
+            }
+        };
+
         if verbose {
             println!("Listening for connections.");
         }
@@ -124,7 +131,7 @@ fn stream_reader(acm: Sender<Data>, mut stream: TcpStream) {
             Ok(_) => {
                 println!("Remote says: {}", &message);
                 // Send incoming message to actor manager
-                let msg = Data::Msg { msg: Message::new(peer_addr.clone(), message.clone()) };
+                let msg = Data::Msg { msg: Message::new("unknown".to_string(), peer_addr.ip(), message.clone()) };
                 acm.send(msg);
             },
             Err(e) => {

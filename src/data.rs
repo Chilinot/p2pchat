@@ -1,4 +1,3 @@
-use std::net::SocketAddr;
 use std::net::IpAddr;
 use client::Client;
 
@@ -6,12 +5,14 @@ use client::Client;
 pub struct Message {
     //TODO: Add source username
     //TODO: Add destination username
-    source: SocketAddr,
+    username: String,
+    source: IpAddr,
     message: String
 }
 impl Message {
-    pub fn new(src: SocketAddr, msg: String) -> Message {
+    pub fn new(usr: String, src: IpAddr, msg: String) -> Message {
         Message {
+            username: usr,
             source: src,
             message: msg
         }
@@ -25,8 +26,12 @@ impl Message {
         self.message.clone()
     }
 
+    pub fn same_user(&self, other: &Message) -> bool {
+        self.username == other.username
+    }
+
     pub fn same_origin(&self, other: &IpAddr) -> bool {
-        self.source.ip() == *other
+        self.source == *other
     }
 }
 
@@ -39,4 +44,3 @@ pub enum Data {
     Msg{msg: Message},
     Cmd{cmd: Command}
 }
-

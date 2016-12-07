@@ -1,3 +1,6 @@
+extern crate argparse;
+use argparse::*;
+
 mod actor_manager;
 mod server;
 
@@ -5,38 +8,97 @@ mod client;
 use client::Client;
 
 mod data;
-use data::*;
+use data::{Message, Data};
 
 use std::io;
 use std::io::prelude::*;
-use std::net::{SocketAddr, TcpStream, TcpListener};
+use std::str::FromStr;
+use std::net::{SocketAddr, TcpStream};
+use std::sync::mpsc::Sender;
+use std::thread;
 
 fn main() {
+    let mut verbose = false;
+    let mut server = true;
+    let mut client = true;
+    let mut rhosts: Vec<String> = Vec::new();
+    { // New scope for argument parser makes it simpler to reason about lifetimes.
+        let mut parser = ArgumentParser::new();
+        parser.set_description("P2P Chat system built in Rust as the final project for the LACPP-course.");
 
-    server::bootup();
+        parser.refer(&mut verbose)
+            .add_option(&["-v", "--verbose"], StoreTrue, "Output lots of info.");
 
-    let stdin = io::stdin();
+        parser.refer(&mut rhosts)
+            .add_option(&["-r", "--remote"], List, "Define remote hosts.");
 
-    //TODO: Ask for IP and port of remote client
-//    let mut rhost = String::new();
-//
-//    match stdin.lock().read_line(&mut rhost) {
-//        Ok(_) => (),
-//        Err(e) => panic!("Could not read rhost from stdin! {:?}", e)
-//    }
-//
-//    let addr = match SocketAddr::from_str(&mut rhost) {
-//        Ok(x) => x,
-//        Err(e) => panic!("Could not parse adress from input! {:?}", e)
-//    };
+        parser.refer(&mut client)
+            .add_option(&["--no-client"], StoreFalse,
+                        "Disables the client part of the program. It will not connect to remote hosts.");
 
-    let mut socket = TcpStream::connect("localhost:8888").unwrap();
-
-    //TODO: Print out incoming data from socket
-
-    for line in stdin.lock().lines() {
-        let line = line.unwrap();
-        socket.write_all((line + "\n").as_bytes());
-        socket.flush();
+        parser.parse_args_or_exit();
     }
+
+    // Start listening for connections.
+    let mut acm_channel = server::bootup();
+
+    let this_addr = SocketAddr::from_str("127.0.0.1:8888");
+
+    if client {
+        println!("Running in client mode.");
+        for mut rhost in rhosts.iter() {
+            connect(rhost, acm_channel.clone());
+        }
+
+        let stdin = io::stdin();
+        for line in stdin.lock().lines() {
+            let line = line.unwrap();
+
+            if line.starts_with("connect") {
+                let split: Vec<&str> = line.split(" ").collect();
+                let rhost = split[1].to_string();
+                connect(&rhost, acm_channel.clone());
+            } else {
+                let msg = Data::Msg {
+                    msg: Message::new(this_addr.clone().unwrap(), line)
+                };
+                acm_channel.send(msg).unwrap();
+            }
+
+        }
+    } else {
+        println!("Server mode enabled.");
+        let stdin = io::stdin();
+        for line in stdin.lock().lines() {
+            let line = line.unwrap();
+            if line == "terminate" {
+                return;
+            } else {
+                println!("Unknown server command!");
+            }
+        }
+    }
+}
+
+fn connect(mut rhost: &String, mut acm: Sender<Data>) {
+    let addr = match SocketAddr::from_str(&mut rhost) {
+        Ok(x) => x,
+        Err(e) => {
+            println!("Could not parse adress from input! {:?}", e);
+            return;
+        }
+    };
+
+    let mut socket = match TcpStream::connect(addr) {
+        Ok(x) => x,
+        Err(e) => {
+            println!("Connection to {} refused!", rhost);
+            return;
+        }
+    };
+
+    let acm = acm.clone();
+    thread::spawn(move || {
+        server::handle_client(socket, acm, false);
+    });
 }

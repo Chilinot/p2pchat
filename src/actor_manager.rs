@@ -21,8 +21,11 @@ impl ActorManager {
     pub fn broadcast(&self, msg: Message) {
         for client in self.client_list.iter() {
             // Pass each client a copy of the message.
-            let msg = msg.clone();
-            client.send_message(msg);
+            let ip = client.get_ip();
+            if !msg.same_origin(&ip) {
+                let msg = msg.clone();
+                client.send_message(msg);
+            }
         }
     }
 }

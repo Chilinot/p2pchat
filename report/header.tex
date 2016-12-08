@@ -1,0 +1,63 @@
+% Todonotes
+\usepackage{todonotes}
+\newcommand{\tinytodo}[2][]
+{\todo[caption={#2}, #1]{\renewcommand{\baselinestretch}{0.5}\selectfont#2\par}}
+
+% For specifying flot properties of figures etc
+\usepackage{float}
+
+% Biblatex for references
+\usepackage[backend=biber]{biblatex}
+\addbibresource{references.bib}
+
+% For creating some fancy plots
+\usepackage{pgfplots}
+
+% Tikz, for drawing diagrams and such
+\usepackage{tikz}
+\usepackage{tikzscale}
+\usetikzlibrary{calc,shapes.multipart,chains,arrows}
+
+% Color - for \citeneeded macro
+\usepackage{color}
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.3,0.3,0.3}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.8,0.8,0.8}
+\definecolor{blckC}{rgb}{0,0,0}
+
+% For subfigures
+\usepackage{subcaption}
+
+% Footnotes (obviously)
+\usepackage{footnote}
+
+% Listings, for displaying source code
+\usepackage{listings}
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},
+    commentstyle=\color{blue},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codegreen},
+    basicstyle=\ttfamily,
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    numbers=left,
+    numbersep=5pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2
+}
+\lstset{style=mystyle}
+
+% My macros
+% -- Citation needed (needs color package)
+\newcommand{\citeneeded}{\textsuperscript{\textcolor{red}{[citation needed]}}}
+% -- Example needed
+\newcommand{\exneeded}{\textcolor{green}{[EXAMPLE]}}
+
+\newcommand{\cmd}[1]{``\texttt{#1}''}

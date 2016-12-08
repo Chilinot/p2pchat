@@ -15,7 +15,7 @@ pub fn bootup(verbose: bool, username: String) -> Sender<Data> {
     }
     let (ac_sender, ac_receiver) = channel::<Data>();
     thread::spawn(move || {
-        let mut actor_manager = ActorManager::new();
+        let mut actor_manager = ActorManager::new(verbose);
         loop {
             match ac_receiver.recv() {
                 Ok(data) => {
@@ -128,7 +128,8 @@ pub fn handle_client(verbose: bool, mut stream: TcpStream, acm: Sender<Data>, an
     let (sender, receiver) = channel::<Data>();
 
     // Create new client object and send it to the actor manager
-    let client = Client::new(stream.peer_addr().unwrap().ip(), client_username, sender);
+    let usr = client_username.clone();
+    let client = Client::new(stream.peer_addr().unwrap().ip(), usr, sender);
     let msg = Data::Cmd {
         cmd: Command::NewClient {
             client: client
@@ -138,7 +139,7 @@ pub fn handle_client(verbose: bool, mut stream: TcpStream, acm: Sender<Data>, an
 
     // Reader thread
     thread::spawn(move || {
-        stream_reader(client_username.clone(), verbose, acm, buf_stream.into_inner());
+        stream_reader(client_username, verbose, acm, buf_stream.into_inner());
     });
 
     // Use this thread for the writer
@@ -158,6 +159,8 @@ fn stream_reader(client_username: String, verbose: bool, acm: Sender<Data>, mut 
                 }
                 if message == "" {
                     println!("{} sent empty string! Did the connection die? Killing connection just to be safe.", &client_username);
+                    let data = Data::Cmd{cmd: Command::DeadClient{client: client_username.clone()}};
+                    acm.send(data);
                     return;
                 }
                 // Send incoming message to actor manager
@@ -199,7 +202,8 @@ fn stream_writer(receiver: Receiver<Data>, mut stream: TcpStream) {
                 }
             },
             Err(e) => {
-                panic!("stream_writer could not receive from channel! {:?}", e);
+                println!("stream_writer could not receive from channel! {:?}", e);
+                return;
             }
         }
     }

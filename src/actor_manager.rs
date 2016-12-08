@@ -2,13 +2,15 @@ use client::Client;
 use data::*;
 
 pub struct ActorManager {
-    client_list: Vec<Client>
+    client_list: Vec<Client>,
+    verbose: bool
 }
 
 impl ActorManager {
-    pub fn new() -> ActorManager {
+    pub fn new(verbose: bool) -> ActorManager {
         ActorManager{
-            client_list: vec![]
+            client_list: vec![],
+            verbose: verbose
         }
     }
 
@@ -18,6 +20,9 @@ impl ActorManager {
 
     //TODO: remove_client()
     pub fn remove_client(&mut self, c: &str) {
+        if self.verbose {
+            println!("ActorManager removing deadclient {}", c);
+        }
         let mut index = 0_usize;
         for client in self.client_list.iter() {
             if client.get_username() ==  c {
@@ -37,7 +42,7 @@ impl ActorManager {
                 let msg = msg.clone();
                 client.send_message(msg);
             }
-            else {
+            else if self.verbose {
                 println!("Didn't send message to sender!");
             }
         }

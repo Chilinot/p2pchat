@@ -60,7 +60,7 @@ pub fn bootup(verbose: bool, username: String) -> Sender<Data> {
         }
         for inc_stream in listener.incoming() {
             match inc_stream {
-                Ok(mut stream) => {
+                Ok(stream) => {
                     // Successfull new connection.
                     // Spawn new thread and pass it a channel to the actor manager.
                     let acs_clone = acs.clone();
@@ -129,13 +129,18 @@ pub fn handle_client(verbose: bool, mut stream: TcpStream, acm: Sender<Data>, an
 
     // Create new client object and send it to the actor manager
     let usr = client_username.clone();
-    let client = Client::new(stream.peer_addr().unwrap().ip(), usr, sender);
+    let client = Client::new(usr, sender);
     let msg = Data::Cmd {
         cmd: Command::NewClient {
             client: client
         }
     };
-    acm.send(msg);
+    match acm.send(msg) {
+        Ok(_) => (),
+        Err(e) => {
+            panic!("handle client could not send new client to actor manager! Error: {:?}", e);
+        }
+    }
 
     // Reader thread
     thread::spawn(move || {
@@ -146,8 +151,7 @@ pub fn handle_client(verbose: bool, mut stream: TcpStream, acm: Sender<Data>, an
     stream_writer(receiver, stream);
 }
 
-fn stream_reader(client_username: String, verbose: bool, acm: Sender<Data>, mut stream: TcpStream) {
-    let peer_addr = stream.peer_addr().unwrap();
+fn stream_reader(client_username: String, verbose: bool, acm: Sender<Data>, stream: TcpStream) {
     let mut buf_stream = BufReader::new(stream);
     let mut message = String::new();
     loop {
@@ -160,7 +164,12 @@ fn stream_reader(client_username: String, verbose: bool, acm: Sender<Data>, mut 
                 if message == "" {
                     println!("{} sent empty string! Did the connection die? Killing connection just to be safe.", &client_username);
                     let data = Data::Cmd{cmd: Command::DeadClient{client: client_username.clone()}};
-                    acm.send(data);
+                    match acm.send(data) {
+                        Ok(_) => (),
+                        Err(e) => {
+                            panic!("Stream reader could not send dead client to actor manager! Error: {:?}", e);
+                        }
+                    }
                     return;
                 }
                 // Send incoming message to actor manager
@@ -175,7 +184,12 @@ fn stream_reader(client_username: String, verbose: bool, acm: Sender<Data>, mut 
                 println!("{}: {}", &client_username, msg.get_message());
 
                 let data = Data::Msg{msg: msg};
-                acm.send(data);
+                match acm.send(data) {
+                    Ok(_) => (),
+                    Err(e) => {
+                        panic!("Stream reader could not send new message to actor manager! Error: {:?}", e);
+                    }
+                }
             },
             Err(e) => {
                 println!("Could not read string from bufstream! {:?}", e);
@@ -193,11 +207,22 @@ fn stream_writer(receiver: Receiver<Data>, mut stream: TcpStream) {
                 match data {
                     Data::Msg{msg} => {
                         // Send message to client on other side of socket
-                        stream.write_all(msg.into_bytes().as_slice());
-                        stream.flush();
+                        match stream.write_all(msg.into_bytes().as_slice()) {
+                            Ok(_) => {
+                                match stream.flush() {
+                                    Ok(_) => (),
+                                    Err(e) => {
+                                        println!("Stream writer could not flush socket! Error: {:?}", e);
+                                    }
+                                }
+                            },
+                            Err(e) => {
+                                println!("Stream writer could not write msg to socket! Error: {:?}", e);
+                            }
+                        }
                     },
-                    Data::Cmd{cmd} => {
-                        panic!("Client receiver received command!");
+                    _ => {
+                        println!("Stream writer received data that was not a message!");
                     }
                 }
             },

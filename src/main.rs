@@ -8,7 +8,6 @@ mod actor_manager;
 mod server;
 
 mod client;
-use client::Client;
 
 mod data;
 use data::{Message, Data};
@@ -16,7 +15,7 @@ use data::{Message, Data};
 use std::io;
 use std::io::prelude::*;
 use std::str::FromStr;
-use std::net::{IpAddr, SocketAddr, TcpStream};
+use std::net::{SocketAddr, TcpStream};
 use std::sync::mpsc::Sender;
 use std::thread;
 use std::process;
@@ -24,7 +23,6 @@ use std::process;
 fn main() {
     let mut username = String::new();
     let mut verbose = false;
-    let mut server = true;
     let mut client = true;
     let mut rhosts: Vec<String> = Vec::new();
     { // New scope for argument parser makes it simpler to reason about lifetimes.
@@ -49,9 +47,7 @@ fn main() {
     }
 
     // Start listening for connections.
-    let mut acm_channel = server::bootup(verbose, username.clone());
-
-    let this_addr = SocketAddr::from_str("127.0.0.1:8888").unwrap();
+    let acm_channel = server::bootup(verbose, username.clone());
 
     if client {
         println!("Client mode enabled.");
@@ -59,7 +55,7 @@ fn main() {
         if verbose {
             println!("Attempting to connect to supplied hosts...");
         }
-        for mut rhost in rhosts.iter() {
+        for rhost in rhosts.iter() {
             if verbose {
                 println!("\tAttempting to connect to {}", &rhost);
             }
@@ -116,7 +112,7 @@ fn main() {
     }
 }
 
-fn connect(username: String, verbose: bool, mut rhost: &String, mut acm: Sender<Data>) {
+fn connect(username: String, verbose: bool, mut rhost: &String, acm: Sender<Data>) {
 
     if verbose {
         println!("Attempting to connect to {}", &rhost);
@@ -133,7 +129,7 @@ fn connect(username: String, verbose: bool, mut rhost: &String, mut acm: Sender<
     let mut socket = match TcpStream::connect(addr) {
         Ok(x) => x,
         Err(e) => {
-            println!("Connection to {} refused!", rhost);
+            println!("Connection to {} refused! Error: {:?}", rhost, e);
             return;
         }
     };

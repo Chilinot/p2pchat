@@ -1,43 +1,65 @@
-use std::net::IpAddr;
 use client::Client;
+use json::{parse, JsonValue, Error};
 
 #[derive(Clone)]
 pub struct Message {
-    //TODO: Add source username
     //TODO: Add destination username
     username: String,
-    source: IpAddr,
-    message: String
+    message: String,
+    msg_type: String
 }
 impl Message {
-    pub fn new(usr: String, src: IpAddr, msg: String) -> Message {
+    pub fn new(usr: String, msg: String, msg_type: String) -> Message {
         Message {
             username: usr,
-            source: src,
-            message: msg
+            message: msg,
+            msg_type: msg_type
         }
     }
 
-    pub fn as_bytes(&self) -> &[u8] {
-        self.message.as_bytes()
+    pub fn from_json(json: &String) -> Result<Message, Error> {
+        let parsed = match parse(json.as_str()) {
+            Ok(p) => p,
+            Err(e) => {
+                println!("Could not parse json!");
+                return Err(e);
+            }
+        };
+
+        Ok(Message {
+            username: parsed["username"].as_str().unwrap().to_string(),
+            message: parsed["message"].as_str().unwrap().to_string(),
+            msg_type: parsed["type"].as_str().unwrap().to_string()
+        })
     }
 
-    pub fn to_string(&self) -> String {
+    pub fn into_bytes(&self) -> Vec<u8> {
+        let mut vector = self.to_json().dump().into_bytes();
+        vector.push(0xA);
+        return vector;
+    }
+
+    pub fn get_message(&self) -> String {
         self.message.clone()
     }
 
-    pub fn same_user(&self, other: &Message) -> bool {
-        self.username == other.username
+    pub fn get_username(&self) -> String {
+        self.username.clone()
     }
 
-    pub fn same_origin(&self, other: &IpAddr) -> bool {
-        self.source == *other
+    pub fn to_json(&self) -> JsonValue {
+        object!{
+            "username" => self.username.clone(),
+            "message" => self.message.clone(),
+            "type" => self.msg_type.clone()
+        }
     }
 }
 
 pub enum Command {
     //TODO: More commands
-    NewClient{client: Client}
+    NewClient{client: Client},
+    DeadClient{client: String}
 }
 
 pub enum Data {

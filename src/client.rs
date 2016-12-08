@@ -18,6 +18,10 @@ impl Client {
         }
     }
 
+    pub fn get_username(&self) -> String {
+        self.username.clone()
+    }
+
     pub fn send_message(&self, msg: Message) {
         self.channel.send(Data::Msg{msg:msg});
     }

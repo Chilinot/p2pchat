@@ -7,8 +7,9 @@ use std::net::{TcpStream, TcpListener};
 use std::sync::mpsc::{channel, Sender, Receiver};
 use std::thread;
 use std::process;
+use json;
 
-pub fn bootup(verbose: bool) -> Sender<Data> {
+pub fn bootup(verbose: bool, username: String) -> Sender<Data> {
     if verbose {
         println!("Setting up actor manager...");
     }
@@ -26,6 +27,9 @@ pub fn bootup(verbose: bool) -> Sender<Data> {
                             match cmd {
                                 Command::NewClient{client} => {
                                     actor_manager.add_client(client);
+                                },
+                                Command::DeadClient{client} => {
+                                    actor_manager.remove_client(&client);
                                 }
                             }
                         }
@@ -59,15 +63,10 @@ pub fn bootup(verbose: bool) -> Sender<Data> {
                 Ok(mut stream) => {
                     // Successfull new connection.
                     // Spawn new thread and pass it a channel to the actor manager.
-                    if verbose {
-                        println!("New connection!");
-                        println!("Asking connection for username...");
-                    }
-                    stream.write_all("Please send username.\n".as_bytes());
-                    stream.flush();
                     let acs_clone = acs.clone();
+                    let usr = username.clone();
                     thread::spawn(move || {
-                        handle_client(verbose, stream, acs_clone, true);
+                        handle_client(verbose, stream, acs_clone, true, usr);
                     });
                 }
                 Err(e) => {
@@ -80,20 +79,45 @@ pub fn bootup(verbose: bool) -> Sender<Data> {
     return ac_sender.clone();
 }
 
-pub fn handle_client(verbose: bool, mut stream: TcpStream, acm: Sender<Data>, wait_for_name: bool) {
+pub fn handle_client(verbose: bool, mut stream: TcpStream, acm: Sender<Data>, answer_handshake: bool, username: String) {
     // Create two buffered wrappers around the stream, one for the reader thread
     // and one for the writer thread.
     let mut buf_stream = BufReader::new(stream.try_clone().unwrap());
 
-    let mut username = stream.peer_addr().unwrap().to_string();
-    if wait_for_name {
-        username.clear();
-        match buf_stream.read_line(&mut username) {
+    if verbose {
+        println!("handle_client triggered!");
+    }
+
+    // Listen for initial handshake
+    let mut incoming = String::new();
+    match buf_stream.read_line(&mut incoming) {
+        Ok(_) => {
+            if verbose {
+                println!("New connection, handshake: {:?}", &incoming);
+            }
+        },
+        Err(e) => {
+            println!("Could not read handshake from socket! {:?}", e);
+            return;
+        }
+    }
+    let json = json::parse(&incoming).unwrap();
+    let client_username = json["username"].as_str().unwrap().to_string();
+
+    if answer_handshake {
+        let msg = Message::new(username.clone(), String::new(), "handshake".to_string());
+        match stream.write_all(msg.into_bytes().as_slice()) {
             Ok(_) => {
-                println!("New client connected with username: {}", &username);
+                match stream.flush() {
+                    Ok(_) => (),
+                    Err(e) => {
+                        println!("Could not flush socket after sending handshake! Error: {:?}", e);
+                        return;
+                    }
+                }
             },
             Err(e) => {
-                println!("Could not read username from socket! {:?}", e);
+                println!("Could not send handshake over socket! Error: {:?}", e);
                 return;
             }
         }
@@ -104,7 +128,7 @@ pub fn handle_client(verbose: bool, mut stream: TcpStream, acm: Sender<Data>, wa
     let (sender, receiver) = channel::<Data>();
 
     // Create new client object and send it to the actor manager
-    let client = Client::new(stream.peer_addr().unwrap().ip(), username, sender);
+    let client = Client::new(stream.peer_addr().unwrap().ip(), client_username, sender);
     let msg = Data::Cmd {
         cmd: Command::NewClient {
             client: client
@@ -114,14 +138,14 @@ pub fn handle_client(verbose: bool, mut stream: TcpStream, acm: Sender<Data>, wa
 
     // Reader thread
     thread::spawn(move || {
-        stream_reader(acm, buf_stream.into_inner());
+        stream_reader(client_username.clone(), verbose, acm, buf_stream.into_inner());
     });
 
     // Use this thread for the writer
     stream_writer(receiver, stream);
 }
 
-fn stream_reader(acm: Sender<Data>, mut stream: TcpStream) {
+fn stream_reader(client_username: String, verbose: bool, acm: Sender<Data>, mut stream: TcpStream) {
     let peer_addr = stream.peer_addr().unwrap();
     let mut buf_stream = BufReader::new(stream);
     let mut message = String::new();
@@ -129,10 +153,26 @@ fn stream_reader(acm: Sender<Data>, mut stream: TcpStream) {
         message.clear();
         match buf_stream.read_line(&mut message) {
             Ok(_) => {
-                println!("Remote says: {}", &message);
+                if verbose {
+                    println!("{} sent: {:?}", &client_username, &message);
+                }
+                if message == "" {
+                    println!("{} sent empty string! Did the connection die? Killing connection just to be safe.", &client_username);
+                    return;
+                }
                 // Send incoming message to actor manager
-                let msg = Data::Msg { msg: Message::new("unknown".to_string(), peer_addr.ip(), message.clone()) };
-                acm.send(msg);
+                let msg = match Message::from_json(&message) {
+                    Ok(m) => m,
+                    Err(e) => {
+                        println!("Could not parse incoming message! Error: {:?}\n\tMessage: {:?}", e, &message);
+                        continue;
+                    }
+                };
+
+                println!("{}: {}", &client_username, msg.get_message());
+
+                let data = Data::Msg{msg: msg};
+                acm.send(data);
             },
             Err(e) => {
                 println!("Could not read string from bufstream! {:?}", e);
@@ -150,7 +190,7 @@ fn stream_writer(receiver: Receiver<Data>, mut stream: TcpStream) {
                 match data {
                     Data::Msg{msg} => {
                         // Send message to client on other side of socket
-                        stream.write_all(msg.as_bytes());
+                        stream.write_all(msg.into_bytes().as_slice());
                         stream.flush();
                     },
                     Data::Cmd{cmd} => {

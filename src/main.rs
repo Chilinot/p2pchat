@@ -49,7 +49,7 @@ fn main() {
     }
 
     // Start listening for connections.
-    let mut acm_channel = server::bootup(verbose);
+    let mut acm_channel = server::bootup(verbose, username.clone());
 
     let this_addr = SocketAddr::from_str("127.0.0.1:8888").unwrap();
 
@@ -63,7 +63,7 @@ fn main() {
             if verbose {
                 println!("\tAttempting to connect to {}", &rhost);
             }
-            connect(&username, verbose, rhost, acm_channel.clone());
+            connect(username.clone(), verbose, rhost, acm_channel.clone());
         }
 
         let stdin = io::stdin();
@@ -78,13 +78,13 @@ fn main() {
 
             if line.starts_with("connect") {
                 let line = line.trim_left_matches("connect ").to_string();
-                connect(&username, verbose, &line, acm_channel.clone());
+                connect(username.clone(), verbose, &line, acm_channel.clone());
             }
             else if line.starts_with("say") {
                 let line = line.trim_left_matches("say").to_string();
 
                 let msg = Data::Msg {
-                    msg: Message::new(username.clone(), this_addr.ip(), (line + "\n"))
+                    msg: Message::new(username.clone(), line, "general".to_string())
                 };
 
                 match acm_channel.send(msg) {
@@ -116,7 +116,12 @@ fn main() {
     }
 }
 
-fn connect(username: &String, verbose: bool, mut rhost: &String, mut acm: Sender<Data>) {
+fn connect(username: String, verbose: bool, mut rhost: &String, mut acm: Sender<Data>) {
+
+    if verbose {
+        println!("Attempting to connect to {}", &rhost);
+    }
+
     let addr = match SocketAddr::from_str(&mut rhost) {
         Ok(x) => x,
         Err(e) => {
@@ -133,24 +138,26 @@ fn connect(username: &String, verbose: bool, mut rhost: &String, mut acm: Sender
         }
     };
 
-    match socket.write_all(username.as_bytes()) {
+    let msg = Message::new(username.clone(), String::new(), "handshake".to_string());
+
+    match socket.write_all(msg.into_bytes().as_slice()) {
         Ok(_) => {
             match socket.flush() {
                 Ok(_) => (),
                 Err(e) => {
-                    println!("Could not flush socket after sending username! Error: {:?}", e);
+                    println!("Could not flush socket after sending handshake! Error: {:?}", e);
                     return;
                 }
             }
         },
         Err(e) => {
-            println!("Could not send username over socket! Error: {:?}", e);
+            println!("Could not send handshake over socket! Error: {:?}", e);
             return;
         }
     }
 
     let acm = acm.clone();
     thread::spawn(move || {
-        server::handle_client(verbose, socket, acm, false);
+        server::handle_client(verbose, socket, acm, false, username.clone());
     });
 }

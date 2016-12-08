@@ -172,7 +172,7 @@ fn stream_reader(client_username: String, verbose: bool, acm: Sender<Data>, stre
                     }
                     return;
                 }
-                // Send incoming message to actor manager
+
                 let msg = match Message::from_json(&message) {
                     Ok(m) => m,
                     Err(e) => {
@@ -181,13 +181,37 @@ fn stream_reader(client_username: String, verbose: bool, acm: Sender<Data>, stre
                     }
                 };
 
-                println!("{}: {}", &client_username, msg.get_message());
+                match msg.get_type().as_ref() {
+                    "general" => {
+                        println!("{}: {}", &client_username, msg.get_message());
 
-                let data = Data::Msg{msg: msg};
-                match acm.send(data) {
-                    Ok(_) => (),
-                    Err(e) => {
-                        panic!("Stream reader could not send new message to actor manager! Error: {:?}", e);
+                        let data = Data::Msg{msg: msg};
+                        match acm.send(data) {
+                            Ok(_) => (),
+                            Err(e) => {
+                                panic!("Stream reader could not send new message to actor manager! Error: {:?}", e);
+                            }
+                        }
+                    },
+
+                    "bye" => {
+                        // Notify actor manager that this client is now to be considered dead
+                        let data = Data::Cmd{cmd: Command::DeadClient{client: client_username.clone()}};
+                        match acm.send(data) {
+                            Ok(_) => (),
+                            Err(e) => {
+                                panic!("Stream reader could not send new bye-message to actor manager! Error: {:?}", e);
+                            }
+                        }
+                    },
+
+                    // Ignore all handshakes at this stage
+                    "handshake" => {
+                        ();
+                    }
+
+                    _ => {
+                        println!("Stream reader received message of unknown type!");
                     }
                 }
             },

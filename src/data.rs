@@ -39,6 +39,10 @@ impl Message {
         return vector;
     }
 
+    pub fn get_type(&self) -> String {
+        self.msg_type.clone()
+    }
+
     pub fn get_message(&self) -> String {
         self.message.clone()
     }

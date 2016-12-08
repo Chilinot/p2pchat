@@ -91,6 +91,15 @@ fn main() {
                 }
             }
             else if line.starts_with("quit") {
+                let msg = Data::Msg {
+                    msg: Message::new(username.clone(), String::new(), "bye".to_string())
+                };
+                match acm_channel.send(msg) {
+                    Ok(_) => (),
+                    Err(e) => {
+                        println!("Could not pass message to acm_channel! Error: {:?}", e);
+                    }
+                }
                 process::exit(0);
             }
             else {

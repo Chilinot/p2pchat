@@ -1,15 +1,18 @@
 use client::Client;
 use actor_manager::ActorManager;
 use data::*;
+
+use json;
+
 use std::io::prelude::*;
 use std::io::BufReader;
-use std::net::{TcpStream, TcpListener};
+use std::net::{SocketAddr, IpAddr, Ipv4Addr, TcpStream, TcpListener};
 use std::sync::mpsc::{channel, Sender, Receiver};
 use std::thread;
 use std::process;
-use json;
+use std::collections::HashSet;
 
-pub fn bootup(verbose: bool, username: String) -> Sender<Data> {
+pub fn bootup(verbose: bool, username: String, port: u16) -> Sender<Data> {
     if verbose {
         println!("Setting up actor manager...");
     }
@@ -47,7 +50,9 @@ pub fn bootup(verbose: bool, username: String) -> Sender<Data> {
     }
     let acs = ac_sender.clone();
     thread::spawn(move || {
-        let listener = match TcpListener::bind("0.0.0.0:8888") {
+        let local_addr = IpAddr::V4(Ipv4Addr::new(0,0,0,0));
+        let local_sock_addr = SocketAddr::new(local_addr, port);
+        let listener = match TcpListener::bind(local_sock_addr) {
             Ok(l) => l,
             Err(e) => {
                 println!("Could not bind serverport 8888! Error: {:?}", e);
@@ -152,6 +157,9 @@ pub fn handle_client(verbose: bool, mut stream: TcpStream, acm: Sender<Data>, an
 }
 
 fn stream_reader(client_username: String, verbose: bool, acm: Sender<Data>, stream: TcpStream) {
+    // I will use this hashmap as a hashset
+    let mut received_messages = HashSet::new();
+
     let mut buf_stream = BufReader::new(stream);
     let mut message = String::new();
     loop {
@@ -183,14 +191,18 @@ fn stream_reader(client_username: String, verbose: bool, acm: Sender<Data>, stre
 
                 match msg.get_type().as_ref() {
                     "general" => {
-                        println!("{}: {}", &client_username, msg.get_message());
+                        if !received_messages.contains(&message) {
+                            println!("{}: {}", &msg.get_username(), msg.get_message());
 
-                        let data = Data::Msg{msg: msg};
-                        match acm.send(data) {
-                            Ok(_) => (),
-                            Err(e) => {
-                                panic!("Stream reader could not send new message to actor manager! Error: {:?}", e);
+                            let data = Data::Msg{msg: msg};
+                            match acm.send(data) {
+                                Ok(_) => (),
+                                Err(e) => {
+                                    panic!("Stream reader could not send new message to actor manager! Error: {:?}", e);
+                                }
                             }
+
+                            received_messages.insert(message.clone());
                         }
                     },
 

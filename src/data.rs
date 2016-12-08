@@ -1,19 +1,22 @@
 use client::Client;
 use json::{parse, JsonValue, Error};
+use time;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Message {
     //TODO: Add destination username
     username: String,
     message: String,
-    msg_type: String
+    msg_type: String,
+    timestamp: i64
 }
 impl Message {
     pub fn new(usr: String, msg: String, msg_type: String) -> Message {
         Message {
             username: usr,
             message: msg,
-            msg_type: msg_type
+            msg_type: msg_type,
+            timestamp: time::get_time().sec // Seconds since 01-Jan-1970
         }
     }
 
@@ -29,7 +32,8 @@ impl Message {
         Ok(Message {
             username: parsed["username"].as_str().unwrap().to_string(),
             message: parsed["message"].as_str().unwrap().to_string(),
-            msg_type: parsed["type"].as_str().unwrap().to_string()
+            msg_type: parsed["type"].as_str().unwrap().to_string(),
+            timestamp: parsed["timestamp"].as_i64().unwrap()
         })
     }
 
@@ -53,9 +57,10 @@ impl Message {
 
     pub fn to_json(&self) -> JsonValue {
         object!{
-            "username" => self.username.clone(),
-            "message" => self.message.clone(),
-            "type" => self.msg_type.clone()
+            "username"  => self.username.clone(),
+            "message"   => self.message.clone(),
+            "type"      => self.msg_type.clone(),
+            "timestamp" => self.timestamp
         }
     }
 }

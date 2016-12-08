@@ -1,17 +1,15 @@
-extern crate argparse;
-use argparse::*;
-
 #[macro_use]
 extern crate json;
+extern crate argparse;
+extern crate time;
 
 mod actor_manager;
 mod server;
-
 mod client;
-
 mod data;
-use data::{Message, Data};
 
+use argparse::*;
+use data::{Message, Data};
 use std::io;
 use std::io::prelude::*;
 use std::str::FromStr;
@@ -22,6 +20,7 @@ use std::process;
 
 fn main() {
     let mut username = String::new();
+    let mut port = String::new();
     let mut verbose = false;
     let mut client = true;
     let mut rhosts: Vec<String> = Vec::new();
@@ -31,6 +30,10 @@ fn main() {
 
         parser.refer(&mut username)
             .add_argument("username", Store, "Username to use for the chat.")
+            .required();
+
+        parser.refer(&mut port)
+            .add_argument("port", Store, "Local port for incoming connections.")
             .required();
 
         parser.refer(&mut verbose)
@@ -47,7 +50,14 @@ fn main() {
     }
 
     // Start listening for connections.
-    let acm_channel = server::bootup(verbose, username.clone());
+    let port = match port.parse::<u16>() {
+        Ok(p) => p,
+        Err(e) => {
+            println!("Could not parse given port number! Is it correctly formed? Error: {:?}", e);
+            return;
+        }
+    };
+    let acm_channel = server::bootup(verbose, username.clone(), port);
 
     if client {
         println!("Client mode enabled.");

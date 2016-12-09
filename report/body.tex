@@ -4,10 +4,52 @@
 \section{Compilation \& Usage}
 % Use cases: how to compile and run your program, including key examples
 \subsection{Compilation}
+In order to compile the program you will need the following installed on your system:
+\begin{itemize}
+  \item Rust: the programming language.
+  \item Cargo: the package manager for the Rust language.
+\end{itemize}
+
+\noindent Compile the program by issuing the following command: \cmd{cargo build --release}. This will put a binary under the path \cmd{target/release} called \cmd{p2pchat}.
+
 \subsection{Usage}
+Issuing the command \cmd{p2pchat -h} displays the following output:
+\begin{lstlisting}
+Usage:
+    p2pchat [OPTIONS] USERNAME PORT
+
+P2P Chat system built in Rust as the final project for the LACPP-course.
+
+positional arguments:
+  username              Username to use for the chat.
+  port                  Local port for incoming connections.
+
+optional arguments:
+  -h,--help             show this help message and exit
+  -v,--verbose          Output lots of info.
+  -r,--remote REMOTE    Define remote hosts.
+  --no-client           Disables the client part of the program.
+                        It will not connect to remote hosts.
+\end{lstlisting}
+
+\noindent The program supports three commands when started, namely:
+\begin{enumerate}
+  \item \cmd{connect}: connect to a remote client. Example: \cmd{connect 127.0.0.1:1234}
+  \item \cmd{say}: broadcast a message over the network. Example \cmd{say Hi there!}
+  \item \cmd{quit}: terminates the program.
+\end{enumerate}
 
 \section{Program Documentation}
 % Program documentation: a description of important data structures, algorithms, functions
+\begin{figure}
+  \centering
+  \def\svgwidth{\columndwidth}
+  \input{figures/p2pchat_structure.pdf_latex}
+\end{figure}
+
+When the program is first executed it creates two new actors. One actor that listens for new tcp-connections called the ``ConnectionListener'', and one actor that keeps track of all connected clients and their associated actors. The tracking actor is called the ``ActorManager''. The ``ActorManager'' also is the one responsible for propagating messages between all active connections. When it receives a new message it broadcasts it to all other actors, which in turn send the message to their connected remote clients.
+
+When a new connection is established the ``ConnectionListener'' will spawn two new actors. One listens for new data on the socket, and the other waits for data to send back over the socket. It then notifies the ``ActorManager'' about these two new actors and the connection they represent by sending it a message.
 
 \section{Performance Evaluation}
 % Performance evaluation: a discussion of your program’s performance, e.g., observed speedup on multi-core hardware
@@ -17,3 +59,7 @@
 
 \section{Discussion}
 % Known shortcomings: a description of things that don’t work as well as you would like, or that could be added in the future
+
+% No reliable solution for handling receiving duplicate messages due to triangles or other structures in the network. Routing protocol?
+
+% Broadcasting all incoming messages is a rather naive solution to propagating messages. This could potentially swamp the network in a lot of data every time a new message is sent.

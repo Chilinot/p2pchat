@@ -141,10 +141,8 @@ pub fn handle_client(verbose: bool, mut stream: TcpStream, acm: Sender<Data>, an
         }
     };
     match acm.send(msg) {
-        Ok(_) => (),
-        Err(e) => {
-            panic!("handle client could not send new client to actor manager! Error: {:?}", e);
-        }
+        Ok(_) => println!("User {} connected!", client_username.clone()),
+        Err(e) => panic!("handle client could not send new client to actor manager! Error: {:?}", e)
     }
 
     // Reader thread

@@ -1,6 +1,6 @@
 use client::Client;
-use actor_manager::ActorManager;
 use data::*;
+use actor_manager;
 
 use json;
 
@@ -16,34 +16,7 @@ pub fn bootup(verbose: bool, username: String, port: u16) -> Sender<Data> {
     if verbose {
         println!("Setting up actor manager...");
     }
-    let (ac_sender, ac_receiver) = channel::<Data>();
-    thread::spawn(move || {
-        let mut actor_manager = ActorManager::new(verbose);
-        loop {
-            match ac_receiver.recv() {
-                Ok(data) => {
-                    match data {
-                        Data::Msg{msg} => {
-                            actor_manager.broadcast(msg);
-                        },
-                        Data::Cmd{cmd} => {
-                            match cmd {
-                                Command::NewClient{client} => {
-                                    actor_manager.add_client(client);
-                                },
-                                Command::DeadClient{client} => {
-                                    actor_manager.remove_client(&client);
-                                }
-                            }
-                        }
-                    }
-                },
-                Err(e) => {
-                    println!("Something went wrong when reading incoming data to actor manager! {:?}", e);
-                }
-            }
-        }
-    });
+    let ac_sender = actor_manager::spawn_actor_manager(verbose);
 
     if verbose {
         println!("Setting up listener actor...");
@@ -84,7 +57,13 @@ pub fn bootup(verbose: bool, username: String, port: u16) -> Sender<Data> {
     return ac_sender.clone();
 }
 
-pub fn handle_client(verbose: bool, mut stream: TcpStream, acm: Sender<Data>, answer_handshake: bool, username: String) {
+pub fn handle_client(
+    verbose: bool,
+    mut stream: TcpStream,
+    acm: Sender<Data>,
+    answer_handshake: bool,
+    username: String
+) {
     // Create two buffered wrappers around the stream, one for the reader thread
     // and one for the writer thread.
     let mut buf_stream = BufReader::new(stream.try_clone().unwrap());

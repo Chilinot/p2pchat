@@ -1,3 +1,5 @@
+use std::sync::mpsc::{Sender, channel};
+use std::thread;
 use client::Client;
 use data::*;
 
@@ -18,7 +20,6 @@ impl ActorManager {
         self.client_list.push(c);
     }
 
-    //TODO: remove_client()
     pub fn remove_client(&mut self, c: &str) {
         if self.verbose {
             println!("ActorManager removing deadclient {}", c);
@@ -47,4 +48,38 @@ impl ActorManager {
             }
         }
     }
+}
+
+pub fn spawn_actor_manager(verbose: bool) -> Sender<Data> {
+    let (sender, receiver) = channel::<Data>();
+
+    thread::spawn(move || {
+        let mut actor_manager = ActorManager::new(verbose);
+        loop {
+            match receiver.recv() {
+                Ok(data) => {
+                    match data {
+                        Data::Msg{msg} => {
+                            actor_manager.broadcast(msg);
+                        },
+                        Data::Cmd{cmd} => {
+                            match cmd {
+                                Command::NewClient{client} => {
+                                    actor_manager.add_client(client);
+                                },
+                                Command::DeadClient{client} => {
+                                    actor_manager.remove_client(&client);
+                                }
+                            }
+                        }
+                    }
+                },
+                Err(e) => {
+                    println!("Something went wrong when reading incoming data to actor manager! {:?}", e);
+                }
+            }
+        }
+    });
+
+    return sender;
 }

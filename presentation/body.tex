@@ -50,7 +50,36 @@
   \begin{itemize}
     \item<2-> Rounded rectangles represents actors.
     \item<3-> Arrows inside big rectangle represents channels.
-    \item<4-> Arrows outside/across borders represents TCP sockets.
+    \item<4-> Arrows outside represents TCP sockets.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Application Structure}
+  The program consists of three main parts:
+  \begin{itemize}
+    \item<2-> Actor Manager
+      \begin{itemize}
+        \item<5-> Manages a list of connected clients and their associated actors.
+        \item<6-> Broadcasts incoming messages to all connected clients.
+        \item<7-> Essentially the main hub of the program.
+      \end{itemize}
+
+    \item<3-> Connection Listener
+      \begin{itemize}
+        \item<8-> Listens for new TCP connections.
+        \item<9-> Upon a new connection it does three things:
+          \begin{enumerate}
+            \item<10-> Spawns two new actors that separately read/write to/from the socket.
+            \item<11-> Creates new channels between the Actor Manager and the two new actors.
+            \item<12-> Notifies the Actor Manager by sending it a message containing a new Client object.
+          \end{enumerate}
+      \end{itemize}
+
+    \item<4-> A Connection
+      \begin{itemize}
+        \item<13-> An abstract concept. Each connection is represented by the two actors spawned by the Connection Listener.
+      \end{itemize}
   \end{itemize}
 \end{frame}
 
@@ -78,12 +107,16 @@
           \begin{itemize}
             \item<3-> Only one scope can own and use a reference at any given time.
           \end{itemize}
-        \item<4-> Allows easy memory management without the need of a garbage collector.
+        \item<4-> Automatic memory management without the need of a garbage collector.
         \item<5-> Guarantees memory safety.
         \item<6-> Guarantees no data races.
           \begin{itemize}
             \item<7-> Does so by not allowing any threads to share data.\footnotemark
-            \item<8> Need to use channels in order to pass data between threads.
+            \item<8-> Need to use channels in order to pass data between threads.
+          \end{itemize}
+        \item<9-> Compiles to LLVM, and has a minimal runtime.
+          \begin{itemize}
+            \item<10-> Can essentially run on any hardware.
           \end{itemize}
       \end{itemize}
   \end{itemize}

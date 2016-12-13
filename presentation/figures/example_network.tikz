@@ -1,0 +1,18 @@
+\begin{tikzpicture}[
+		squarednode/.style={rectangle, draw=black, minimum size=8mm, rounded corners},
+	]
+
+	%Nodes
+	\node[squarednode] (middle)                   {2};
+	\node[squarednode] (upper)  [above=of middle] {1};
+	\node[squarednode] (right)  [right=of middle] {3};
+	\node[squarednode] (lower)  [below=of middle] {4};
+	\node[squarednode] (right2) [right=of right] {5};
+
+	%Lines
+	\draw[<->] (upper.south) -- (middle.north);
+	\draw[<->] (middle.east) -- (right.west);
+	\draw[<->] (middle.south) -- (lower.north);
+	\draw[<->] (right.east) -- (right2.west);
+	\draw[<->] (right.south) .. controls +(down:7mm) and +(right:7mm) .. (lower.east);
+\end{tikzpicture}

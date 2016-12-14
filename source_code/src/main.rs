@@ -2,6 +2,7 @@
 extern crate json;
 extern crate argparse;
 extern crate time;
+extern crate termion;
 
 mod actor_manager;
 mod server;
@@ -17,6 +18,7 @@ use std::net::{SocketAddr, TcpStream};
 use std::sync::mpsc::Sender;
 use std::thread;
 use std::process;
+use termion::color;
 
 fn main() {
     let mut username = String::new();
@@ -60,14 +62,17 @@ fn main() {
     let acm_channel = server::bootup(verbose, username.clone(), port);
 
     if client {
-        println!("Client mode enabled.");
+        // Clear the screen
+        print!("{}", termion::clear::All);
+
+        println!("{}Client mode enabled.{}", color::Fg(color::LightBlue), color::Fg(color::Reset));
 
         if verbose {
-            println!("Attempting to connect to supplied hosts...");
+            println!("{}Attempting to connect to supplied hosts...{}", color::Fg(color::LightYellow), color::Fg(color::Reset));
         }
         for rhost in rhosts.iter() {
             if verbose {
-                println!("\tAttempting to connect to {}", &rhost);
+                println!("Attempting to connect to {}", &rhost);
             }
             connect(username.clone(), verbose, rhost, acm_channel.clone());
         }
@@ -148,7 +153,7 @@ fn connect(username: String, verbose: bool, mut rhost: &String, acm: Sender<Data
     let mut socket = match TcpStream::connect(addr) {
         Ok(x) => x,
         Err(e) => {
-            println!("Connection to {} refused! Error: {:?}", rhost, e);
+            println!("{}Connection to {} refused! Error: {:?}{}", color::Fg(color::LightRed), rhost, e, color::Fg(color::Reset));
             return;
         }
     };

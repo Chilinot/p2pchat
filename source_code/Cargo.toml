@@ -7,3 +7,4 @@ authors = ["Lucas Arnström <lucas@arnstrom.se>"]
 argparse = "*"
 json = "*"
 time = "*"
+termion = "*"

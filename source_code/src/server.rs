@@ -4,6 +4,8 @@ use actor_manager;
 
 use json;
 
+use termion::color;
+
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::net::{SocketAddr, IpAddr, Ipv4Addr, TcpStream, TcpListener};
@@ -147,7 +149,7 @@ fn stream_reader(client_username: String, verbose: bool, acm: Sender<Data>, stre
                     println!("{} sent: {:?}", &client_username, &message);
                 }
                 if message == "" {
-                    println!("{} sent empty string! Did the connection die? Killing connection just to be safe.", &client_username);
+                    println!("{}{} sent empty string! Did the connection die? Killing connection just to be safe.{}", color::Fg(color::LightRed), &client_username, color::Fg(color::Reset));
                     let data = Data::Cmd{cmd: Command::DeadClient{client: client_username.clone()}};
                     match acm.send(data) {
                         Ok(_) => (),
